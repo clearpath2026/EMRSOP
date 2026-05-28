@@ -120,12 +120,16 @@ if exist "%TESS_EXE%" (
 echo         Tesseract not found. Trying winget...
 where winget >nul 2>&1
 if %errorLevel% equ 0 (
-    winget install UB-Mannheim.TesseractOCR --silent --accept-package-agreements --accept-source-agreements
+    winget source update --name winget >nul 2>&1
+    winget install --id UB-Mannheim.TesseractOCR --silent --accept-package-agreements --accept-source-agreements
     if exist "%TESS_EXE%" (
         echo         Tesseract installed via winget.
         setx TESSERACT_CMD "%TESS_EXE%" /M >nul
         goto :tess_done
     )
+    echo         winget did not install Tesseract. Trying Chocolatey...
+) else (
+    echo         winget not found. Trying Chocolatey...
 )
 
 echo         winget unavailable or failed. Trying Chocolatey...
@@ -255,6 +259,7 @@ echo         Installing spaCy (must come after numpy)...
 
 echo         Installing remaining packages...
 %PYTHON_EXE% -m pip install ^
+    "numpy>=1.24,<2.0" ^
     "presidio-analyzer>=2.2.362" ^
     "presidio-anonymizer>=2.2.362" ^
     "pydantic>=2.0,<3.0" ^
@@ -264,7 +269,7 @@ echo         Installing remaining packages...
     "pytesseract>=0.3.10" ^
     "pywin32>=306" ^
     "psutil>=5.9" ^
-    "pandas>=2.0" ^
+    "pandas>=2.0,<3.0" ^
     --quiet --no-warn-script-location
 
 if %errorLevel% neq 0 (
