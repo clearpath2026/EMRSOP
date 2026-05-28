@@ -1,51 +1,19 @@
 from PIL import Image, ImageFilter
-import io
 
 _BLUR_RADIUS = 15
 
 
 def _regions_windows_ocr(image: Image.Image) -> list:
-    import asyncio
-
-    async def _run():
-        from winsdk.windows.media.ocr import OcrEngine
-        from winsdk.windows.graphics.imaging import (
-            BitmapDecoder, SoftwareBitmap,
-            BitmapPixelFormat, BitmapAlphaMode,
-        )
-        from winsdk.windows.storage.streams import InMemoryRandomAccessStream, DataWriter
-
-        buf = io.BytesIO()
-        image.save(buf, format="BMP")
-        data = buf.getvalue()
-
-        stream = InMemoryRandomAccessStream()
-        writer = DataWriter(stream)
-        writer.write_bytes(data)
-        await writer.store_async()
-        stream.seek(0)
-
-        decoder = await BitmapDecoder.create_async(stream)
-        bitmap = await decoder.get_software_bitmap_async()
-        bitmap = SoftwareBitmap.convert(
-            bitmap,
-            BitmapPixelFormat.BGRA8,
-            BitmapAlphaMode.PREMULTIPLIED,
-        )
-
-        engine = OcrEngine.try_create_from_user_profile_languages()
-        if engine is None:
-            return []
-
-        result = await engine.recognize_async(bitmap)
-        regions = []
-        for line in result.lines:
-            for word in line.words:
-                r = word.bounding_rect
-                regions.append((int(r.x), int(r.y), int(r.width), int(r.height)))
-        return regions
-
-    return asyncio.run(_run())
+    from agent.screenshots._winrt import recognize
+    result = recognize(image)
+    if result is None:
+        return []
+    regions = []
+    for line in result.lines:
+        for word in line.words:
+            r = word.bounding_rect
+            regions.append((int(r.x), int(r.y), int(r.width), int(r.height)))
+    return regions
 
 
 def _regions_tesseract(image: Image.Image) -> list:

@@ -62,6 +62,67 @@ def test_tracker_ignores_non_emr_windows(callback, detector):
     callback.assert_not_called()
 
 
+def test_tracker_uses_ocr_for_rdp_window(callback, detector):
+    detector.detect_from_ocr = MagicMock(return_value=("accuro", "patient_search"))
+    tracker = UIATracker(
+        emr_detector=detector,
+        event_callback=callback,
+        poll_interval=0.05,
+        rdp_processes=["mstsc.exe"],
+        rdp_ocr_interval=0.0,
+    )
+
+    with patch("agent.tracker.uia_tracker.win32gui") as mock_gui, \
+         patch("agent.tracker.uia_tracker.win32process") as mock_proc, \
+         patch("agent.tracker.uia_tracker.psutil") as mock_psutil, \
+         patch("agent.tracker.uia_tracker.capture_emr_window", return_value=MagicMock()), \
+         patch("agent.tracker.uia_tracker.get_text", return_value="Patient Search Accuro"):
+
+        mock_gui.GetForegroundWindow.return_value = 500
+        mock_gui.GetWindowText.return_value = "Remote Desktop"
+        mock_proc.GetWindowThreadProcessId.return_value = (1, 999)
+        mock_psutil.Process.return_value.name.return_value = "mstsc.exe"
+
+        tracker.start()
+        time.sleep(0.2)
+        tracker.stop()
+
+    assert callback.call_count >= 1
+    first = callback.call_args_list[0]
+    assert first.kwargs["emr"] == "accuro"
+    assert first.kwargs["module"] == "patient_search"
+    assert first.kwargs["window_title"].startswith("[RDP]")
+
+
+def test_rdp_callback_fires_only_on_module_change(callback, detector):
+    detector.detect_from_ocr = MagicMock(return_value=("accuro", "patient_search"))
+    tracker = UIATracker(
+        emr_detector=detector,
+        event_callback=callback,
+        poll_interval=0.05,
+        rdp_processes=["mstsc.exe"],
+        rdp_ocr_interval=0.0,
+    )
+
+    with patch("agent.tracker.uia_tracker.win32gui") as mock_gui, \
+         patch("agent.tracker.uia_tracker.win32process") as mock_proc, \
+         patch("agent.tracker.uia_tracker.psutil") as mock_psutil, \
+         patch("agent.tracker.uia_tracker.capture_emr_window", return_value=MagicMock()), \
+         patch("agent.tracker.uia_tracker.get_text", return_value="Patient Search Accuro"):
+
+        mock_gui.GetForegroundWindow.return_value = 500
+        mock_gui.GetWindowText.return_value = "Remote Desktop"
+        mock_proc.GetWindowThreadProcessId.return_value = (1, 999)
+        mock_psutil.Process.return_value.name.return_value = "mstsc.exe"
+
+        tracker.start()
+        time.sleep(0.3)
+        tracker.stop()
+
+    # Same module detected repeatedly — callback should only fire once
+    assert callback.call_count == 1
+
+
 def test_tracker_stop_terminates_thread(callback, detector):
     tracker = UIATracker(emr_detector=detector, event_callback=callback, poll_interval=0.05)
 

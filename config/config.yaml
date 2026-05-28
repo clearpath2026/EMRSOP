@@ -8,6 +8,8 @@ audit_log_path: "C:\\ProgramData\\EMRTracker\\data\\audit.log"
 
 poll_interval: 0.2
 idle_timeout: 900
+rdp_processes: ["mstsc.exe"]
+rdp_ocr_interval: 2.0
 
 emr_modules:
   accuro:

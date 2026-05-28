@@ -34,3 +34,12 @@ class EMRDetector:
             return emr, "unknown_module"
 
         return None, None
+
+    def detect_from_ocr(self, ocr_text: str) -> Tuple[Optional[str], Optional[str]]:
+        """Detect EMR and module from OCR text of an RDP window."""
+        text_lower = ocr_text.lower()
+        for emr, modules in self._modules.items():
+            for module, keywords in modules.items():
+                if any(kw.lower() in text_lower for kw in keywords):
+                    return emr, module
+        return None, None

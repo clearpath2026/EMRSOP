@@ -19,6 +19,8 @@ class Config:
     idle_timeout: int
     emr_modules: Dict[str, Dict[str, List[str]]]
     emr_processes: Dict[str, Dict]
+    rdp_processes: List[str] = field(default_factory=lambda: ["mstsc.exe"])
+    rdp_ocr_interval: float = 2.0
 
 
 def load_config(path: Path = DEFAULT_CONFIG_PATH) -> Config:

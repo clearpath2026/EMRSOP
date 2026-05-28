@@ -57,6 +57,8 @@ class EMRTrackerService(win32serviceutil.ServiceFramework):
             emr_detector=detector,
             event_callback=aggregator.on_event,
             poll_interval=config.poll_interval,
+            rdp_processes=config.rdp_processes,
+            rdp_ocr_interval=config.rdp_ocr_interval,
         )
         self._tracker.start()
         win32event.WaitForSingleObject(self._stop_event, win32event.INFINITE)
