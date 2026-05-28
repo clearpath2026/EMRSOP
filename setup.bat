@@ -115,8 +115,8 @@ if exist "%TESS_EXE%" (
     echo         Tesseract found - registering path.
     setx TESSERACT_CMD "%TESS_EXE%" /M >nul
 ) else (
-    echo         Tesseract not installed - using Windows OCR instead (built-in).
-    echo         Screenshots will be blurred via Windows OCR. No action needed.
+    echo         Tesseract not installed - using Windows built-in OCR.
+    echo         Screenshots will be blurred automatically. No action needed.
 )
 
 :tess_done
