@@ -39,6 +39,7 @@ def test_tracker_calls_callback_on_window_change(callback, detector):
     assert callback.call_count >= 1
     first_call = callback.call_args_list[0]
     assert first_call.kwargs["emr"] == "accuro"
+    assert "hwnd" in first_call.kwargs
 
 
 def test_tracker_ignores_non_emr_windows(callback, detector):

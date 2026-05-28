@@ -62,4 +62,5 @@ class UIATracker:
             module=module,
             window_title=title,
             event_type="window_focus",
+            hwnd=hwnd,
         )

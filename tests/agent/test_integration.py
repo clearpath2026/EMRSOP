@@ -96,7 +96,8 @@ def test_full_pipeline_produces_json(tmp_path, shared_redaction_engine):
 
     with patch("agent.tracker.uia_tracker.win32gui") as mock_gui, \
          patch("agent.tracker.uia_tracker.win32process") as mock_proc, \
-         patch("agent.tracker.uia_tracker.psutil") as mock_psu:
+         patch("agent.tracker.uia_tracker.psutil") as mock_psu, \
+         patch("agent.session.aggregator.SessionAggregator._try_capture_screenshot", return_value=None):
 
         mock_gui.GetForegroundWindow.side_effect = side_hwnd
         mock_gui.GetWindowText.side_effect = fake_get_text

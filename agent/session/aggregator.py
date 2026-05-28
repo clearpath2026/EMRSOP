@@ -20,7 +20,12 @@ class SessionAggregator:
         self._last_event_time: Optional[datetime] = None
 
     def on_event(
-        self, emr: str, module: str, window_title: str, event_type: str
+        self,
+        emr: str,
+        module: str,
+        window_title: str,
+        event_type: str,
+        hwnd: int = 0,
     ) -> None:
         now = datetime.utcnow()
 
@@ -37,10 +42,54 @@ class SessionAggregator:
         step_num = len(self._current_session.steps) + 1
         action = f"Navigated to {module.replace('_', ' ')} — {redacted_title}"
 
+        screenshot_id = None
+        if hwnd and module != "unknown_module":
+            screenshot_id = self._try_capture_screenshot(hwnd, module, now)
+
         self._current_session.steps.append(
-            WorkflowStep(step=step_num, action=action, module=module, timestamp=now)
+            WorkflowStep(
+                step=step_num,
+                action=action,
+                module=module,
+                timestamp=now,
+                screenshot_id=screenshot_id,
+            )
         )
         self._current_session.step_count = step_num
+
+    def _try_capture_screenshot(
+        self, hwnd: int, module: str, now: datetime
+    ) -> str | None:
+        try:
+            from agent.screenshots.capture import capture_emr_window
+            from agent.screenshots.redactor import blur_text_regions
+            import uuid
+            from pathlib import Path
+
+            screenshot_id = f"scr_{uuid.uuid4().hex[:8]}"
+            img = capture_emr_window(hwnd)
+            blurred = blur_text_regions(img)
+
+            screenshots_dir = Path(self._config.screenshots_dir)
+            screenshots_dir.mkdir(parents=True, exist_ok=True)
+            file_path = screenshots_dir / f"{self._current_session.session_id}_{screenshot_id}.png"
+            blurred.save(str(file_path))
+
+            from agent.tracker.event_models import ScreenshotMeta
+            self._current_session.screenshots.append(
+                ScreenshotMeta(
+                    screenshot_id=screenshot_id,
+                    file_path=str(file_path),
+                    module=module,
+                    event_type="navigation",
+                    timestamp=now,
+                )
+            )
+            self._audit.log("SCREENSHOT_SAVED", session_id=self._current_session.session_id,
+                           detail=f"module={module} file={file_path.name}")
+            return screenshot_id
+        except Exception:
+            return None
 
     def force_close(self) -> None:
         if self._current_session:
