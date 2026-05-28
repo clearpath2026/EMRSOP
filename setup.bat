@@ -232,15 +232,19 @@ echo.
 echo         Upgrading pip...
 %PYTHON_EXE% -m pip install --upgrade pip --quiet --no-warn-script-location
 
-echo         Reinstalling numpy cleanly (fixes DLL issues)...
-%PYTHON_EXE% -m pip uninstall numpy -y --quiet 2>nul
-%PYTHON_EXE% -m pip install "numpy>=1.24" --quiet --no-warn-script-location
+echo         Removing spacy/thinc/numpy for clean reinstall (fixes DLL issues)...
+%PYTHON_EXE% -m pip uninstall spacy thinc numpy -y --quiet 2>nul
+
+echo         Installing numpy first...
+%PYTHON_EXE% -m pip install "numpy>=1.24,<2.0" --quiet --no-warn-script-location
+
+echo         Installing spaCy (must come after numpy)...
+%PYTHON_EXE% -m pip install "spacy>=3.8" --quiet --no-warn-script-location
 
 echo         Installing remaining packages...
 %PYTHON_EXE% -m pip install ^
     "presidio-analyzer>=2.2.362" ^
     "presidio-anonymizer>=2.2.362" ^
-    "spacy>=3.8" ^
     "pydantic>=2.0,<3.0" ^
     "pyyaml>=6.0" ^
     "mss>=9.0" ^
