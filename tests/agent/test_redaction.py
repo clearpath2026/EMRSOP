@@ -39,9 +39,9 @@ def test_postal_code_recognizer_entity_type():
 
 # --- Engine tests ---
 
-@pytest.fixture(scope="module")
-def engine():
-    return RedactionEngine()
+@pytest.fixture
+def engine(shared_redaction_engine):
+    return shared_redaction_engine
 
 def test_engine_redacts_person_name(engine):
     result = engine.redact("Patient John Smith called today about his appointment.")
