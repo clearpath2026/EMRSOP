@@ -1,0 +1,38 @@
+agent_id: "vm-agent-01"
+
+data_dir: "C:\\ProgramData\\EMRTracker\\data"
+workflows_dir: "C:\\ProgramData\\EMRTracker\\data\\workflows"
+screenshots_dir: "C:\\ProgramData\\EMRTracker\\data\\screenshots"
+db_path: "C:\\ProgramData\\EMRTracker\\data\\emr_tracker.db"
+audit_log_path: "C:\\ProgramData\\EMRTracker\\data\\audit.log"
+
+poll_interval: 0.2
+idle_timeout: 900
+
+emr_modules:
+  accuro:
+    patient_search: ["Patient Search", "Find Patient"]
+    appointment_scheduling: ["Appointment", "Schedule", "Calendar"]
+    billing: ["Billing", "Invoice", "Claims"]
+    clinical_notes: ["Chart", "Clinical Notes", "SOAP"]
+  oscar:
+    patient_search: ["Search", "Patient Lookup"]
+    appointment_scheduling: ["Appointments", "Scheduler"]
+    billing: ["Billing", "MSP"]
+    clinical_notes: ["Chart", "Notes"]
+  ps_suite:
+    patient_search: ["Patient Search", "Patient List"]
+    appointment_scheduling: ["Appointment Book", "Schedule"]
+    billing: ["Billing", "Insurance"]
+    clinical_notes: ["Clinical Notes", "Chart"]
+
+emr_processes:
+  accuro:
+    process_names: ["chrome.exe", "msedge.exe"]
+    window_title_patterns: ["Accuro", "QHR Accuro"]
+  oscar:
+    process_names: ["chrome.exe", "msedge.exe"]
+    window_title_patterns: ["OSCAR", "Oscar Pro", "OSCAR EMR"]
+  ps_suite:
+    process_names: ["PSS.exe", "PSSuite.exe"]
+    window_title_patterns: ["PS Suite", "PS EMR", "TELUS PS Suite"]
