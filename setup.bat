@@ -25,7 +25,6 @@ if %errorLevel% neq 0 (
 set "INSTALL_DIR=C:\EMRTracker"
 set "REPO_URL=https://github.com/clearpath2026/EMRSOP/archive/refs/heads/main.zip"
 set "PYTHON_URL=https://www.python.org/ftp/python/3.11.9/python-3.11.9-amd64.exe"
-set "TESS_URL=https://github.com/UB-Mannheim/tesseract/releases/download/v5.3.3.20231005/tesseract-ocr-w64-setup-5.3.3.20231005.exe"
 set "VCREDIST_URL=https://aka.ms/vs/17/release/vc_redist.x64.exe"
 set "TEMP_DIR=%TEMP%\emrsop_setup"
 
@@ -113,42 +112,12 @@ echo  Step 2/7 - Checking Tesseract OCR...
 
 set "TESS_EXE=C:\Program Files\Tesseract-OCR\tesseract.exe"
 if exist "%TESS_EXE%" (
-    echo         Tesseract already installed - skipping.
-    goto :tess_done
-)
-
-echo         Tesseract not found. Trying BITS transfer (~50 MB)...
-del "%TEMP_DIR%\tesseract_installer.exe" 2>nul
-powershell -NoProfile -ExecutionPolicy Bypass -Command "Start-BitsTransfer -Source '%TESS_URL%' -Destination '%TEMP_DIR%\tesseract_installer.exe'" 2>nul
-
-if not exist "%TEMP_DIR%\tesseract_installer.exe" goto :tess_webclient
-for %%f in ("%TEMP_DIR%\tesseract_installer.exe") do set TESS_SIZE=%%~zf
-if !TESS_SIZE! LSS 1000000 goto :tess_webclient
-goto :tess_run_installer
-
-:tess_webclient
-echo         BITS failed. Trying WebClient...
-del "%TEMP_DIR%\tesseract_installer.exe" 2>nul
-powershell -NoProfile -ExecutionPolicy Bypass -Command "[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; (New-Object Net.WebClient).DownloadFile('%TESS_URL%', '%TEMP_DIR%\tesseract_installer.exe')"
-if not exist "%TEMP_DIR%\tesseract_installer.exe" goto :tess_failed
-for %%f in ("%TEMP_DIR%\tesseract_installer.exe") do set TESS_SIZE=%%~zf
-if !TESS_SIZE! LSS 1000000 goto :tess_failed
-
-:tess_run_installer
-echo         Download complete. Installing silently...
-"%TEMP_DIR%\tesseract_installer.exe" /S
-timeout /t 10 /nobreak >nul
-if exist "%TESS_EXE%" (
-    echo         Tesseract installed successfully.
+    echo         Tesseract found - registering path.
     setx TESSERACT_CMD "%TESS_EXE%" /M >nul
-    goto :tess_done
+) else (
+    echo         Tesseract not installed - using Windows OCR instead (built-in).
+    echo         Screenshots will be blurred via Windows OCR. No action needed.
 )
-
-:tess_failed
-echo  WARNING: Tesseract could not be installed. Screenshots will not be blurred.
-echo           To install manually, run in an admin PowerShell:
-echo             winget install UB-Mannheim.TesseractOCR
-echo           Or download from: https://github.com/UB-Mannheim/tesseract/wiki
 
 :tess_done
 echo.
@@ -320,11 +289,6 @@ echo.
 echo  Watch the audit log live:
 echo    powershell Get-Content %DATA_DIR%\audit.log -Wait
 echo.
-if not exist "%TESS_EXE%" (
-    echo  REMINDER: Tesseract was not installed - screenshots will not be blurred.
-    echo  Download: https://github.com/UB-Mannheim/tesseract/wiki
-    echo.
-)
 pause
 exit /b 0
 
