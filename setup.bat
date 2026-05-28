@@ -240,6 +240,7 @@ echo         Installing remaining packages...
     "mss>=9.0" ^
     "Pillow>=10.0" ^
     "pytesseract>=0.3.10" ^
+    "winsdk>=1.0.0b10" ^
     "pywin32>=306" ^
     "psutil>=5.9" ^
     "pandas>=2.0,<3.0" ^

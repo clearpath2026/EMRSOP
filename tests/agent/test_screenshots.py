@@ -37,19 +37,9 @@ def test_blur_text_regions_returns_pil_image():
     from agent.screenshots.redactor import blur_text_regions
 
     img = _make_image()
-    fake_df = {
-        "level": [5, 5],
-        "left": [10, 200],
-        "top": [20, 100],
-        "width": [80, 120],
-        "height": [20, 25],
-        "text": ["John Smith", "M5V 3A8"],
-        "conf": [90, 85],
-    }
+    fake_regions = [(10, 20, 80, 20), (200, 100, 120, 25)]
 
-    with patch("agent.screenshots.redactor.pytesseract.image_to_data") as mock_ocr:
-        import pandas as pd
-        mock_ocr.return_value = pd.DataFrame(fake_df)
+    with patch("agent.screenshots.redactor._regions_windows_ocr", return_value=fake_regions):
         result = blur_text_regions(img)
 
     assert isinstance(result, Image.Image)
@@ -60,12 +50,22 @@ def test_blur_no_text_returns_original_dimensions():
     from agent.screenshots.redactor import blur_text_regions
 
     img = _make_image()
-    with patch("agent.screenshots.redactor.pytesseract.image_to_data") as mock_ocr:
-        import pandas as pd
-        mock_ocr.return_value = pd.DataFrame({
-            "level": [], "left": [], "top": [],
-            "width": [], "height": [], "text": [], "conf": [],
-        })
-        result = blur_text_regions(img)
+    with patch("agent.screenshots.redactor._regions_windows_ocr", return_value=[]):
+        with patch("agent.screenshots.redactor._regions_tesseract", return_value=[]):
+            result = blur_text_regions(img)
 
+    assert result.size == img.size
+
+
+def test_blur_falls_back_to_tesseract_when_windows_ocr_fails():
+    from agent.screenshots.redactor import blur_text_regions
+
+    img = _make_image()
+    fake_regions = [(50, 50, 100, 20)]
+
+    with patch("agent.screenshots.redactor._regions_windows_ocr", side_effect=Exception("no winrt")):
+        with patch("agent.screenshots.redactor._regions_tesseract", return_value=fake_regions):
+            result = blur_text_regions(img)
+
+    assert isinstance(result, Image.Image)
     assert result.size == img.size
