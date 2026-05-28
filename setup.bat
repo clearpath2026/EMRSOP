@@ -34,20 +34,6 @@ mkdir "%TEMP_DIR%" 2>nul
 :: -------------------------------------------------------
 :: Self-update: always pull latest setup.bat from GitHub
 :: -------------------------------------------------------
-echo  Checking for setup updates...
-powershell -NoProfile -ExecutionPolicy Bypass -Command ^
-    "[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; try { (New-Object Net.WebClient).DownloadFile('https://raw.githubusercontent.com/clearpath2026/EMRSOP/main/setup.bat', '%TEMP_DIR%\setup_latest.bat') } catch {}"
-
-if exist "%TEMP_DIR%\setup_latest.bat" (
-    fc /b "%~f0" "%TEMP_DIR%\setup_latest.bat" >nul 2>&1
-    if not %errorLevel% equ 0 (
-        echo  Update found - relaunching with latest version...
-        copy /y "%TEMP_DIR%\setup_latest.bat" "%~f0" >nul
-        start "" cmd /c ""%~f0""
-        exit
-    )
-)
-echo  Setup is up to date.
 echo.
 
 :: -------------------------------------------------------
