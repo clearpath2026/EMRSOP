@@ -14,3 +14,11 @@ for _mod in _WIN_MODULES:
 # Mock mss so screenshot tests don't need a display
 if "mss" not in sys.modules:
     sys.modules["mss"] = MagicMock()
+
+
+import pytest
+
+@pytest.fixture(scope="session")
+def shared_redaction_engine():
+    from agent.redaction.engine import RedactionEngine
+    return RedactionEngine()

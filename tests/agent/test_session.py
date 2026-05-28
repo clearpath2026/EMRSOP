@@ -120,12 +120,6 @@ from unittest.mock import MagicMock, patch
 from agent.session.aggregator import SessionAggregator, IDLE_TIMEOUT_SECONDS
 
 
-@pytest.fixture(scope="module")
-def shared_redaction_engine():
-    from agent.redaction.engine import RedactionEngine
-    return RedactionEngine()
-
-
 def _make_aggregator(tmp_path_str: str, redaction_engine=None) -> SessionAggregator:
     from agent.redaction.engine import RedactionEngine
     from agent.storage.db import Database

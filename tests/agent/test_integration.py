@@ -39,7 +39,7 @@ WINDOW_SEQUENCE = [
 ]
 
 
-def test_full_pipeline_produces_json(tmp_path):
+def test_full_pipeline_produces_json(tmp_path, shared_redaction_engine):
     config = Config(
         agent_id="vm-integration-test",
         data_dir=str(tmp_path),
@@ -55,7 +55,7 @@ def test_full_pipeline_produces_json(tmp_path):
 
     db = Database(config.db_path)
     audit = AuditLogger(config.audit_log_path)
-    redaction = RedactionEngine()
+    redaction = shared_redaction_engine
     detector = EMRDetector(config.emr_modules, config.emr_processes)
     aggregator = SessionAggregator(
         agent_id=config.agent_id,
