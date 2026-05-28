@@ -32,6 +32,25 @@ set "TEMP_DIR=%TEMP%\emrsop_setup"
 mkdir "%TEMP_DIR%" 2>nul
 
 :: -------------------------------------------------------
+:: Self-update: always pull latest setup.bat from GitHub
+:: -------------------------------------------------------
+echo  Checking for setup updates...
+powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+    "[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; try { (New-Object Net.WebClient).DownloadFile('https://raw.githubusercontent.com/clearpath2026/EMRSOP/main/setup.bat', '%TEMP_DIR%\setup_latest.bat') } catch {}"
+
+if exist "%TEMP_DIR%\setup_latest.bat" (
+    fc /b "%~f0" "%TEMP_DIR%\setup_latest.bat" >nul 2>&1
+    if not %errorLevel% equ 0 (
+        echo  Update found - relaunching with latest version...
+        copy /y "%TEMP_DIR%\setup_latest.bat" "%~f0" >nul
+        start "" cmd /c ""%~f0""
+        exit
+    )
+)
+echo  Setup is up to date.
+echo.
+
+:: -------------------------------------------------------
 echo  Step 1/7 - Checking Python...
 :: -------------------------------------------------------
 
@@ -53,8 +72,8 @@ if %errorLevel% equ 0 (
 
 echo         Python not found. Downloading Python 3.11.9...
 powershell -NoProfile -ExecutionPolicy Bypass -Command ^
-    "[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; Invoke-WebRequest -Uri '%PYTHON_URL%' -OutFile '%TEMP_DIR%\python_installer.exe' -UseBasicParsing; Write-Host '        Download complete.'"
-if %errorLevel% neq 0 (
+    "[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; (New-Object Net.WebClient).DownloadFile('%PYTHON_URL%', '%TEMP_DIR%\python_installer.exe'); Write-Host '        Download complete.'"
+if not exist "%TEMP_DIR%\python_installer.exe" (
     echo  ERROR: Failed to download Python. Check internet connection.
     pause
     exit /b 1
@@ -113,21 +132,25 @@ if exist "%TESS_EXE%" (
 )
 
 echo         Tesseract not found. Downloading from GitHub (~50 MB)...
+del "%TEMP_DIR%\tesseract_installer.exe" 2>nul
 powershell -NoProfile -ExecutionPolicy Bypass -Command ^
-    "[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; (New-Object Net.WebClient).DownloadFile('%TESS_URL%', '%TEMP_DIR%\tesseract_installer.exe'); Write-Host '        Download complete.'"
-if %errorLevel% neq 0 (
-    echo  WARNING: Tesseract download failed. Screenshots will not be blurred.
-    echo           You can install it manually later:
-    echo           https://github.com/UB-Mannheim/tesseract/wiki
-    goto :tess_done
-)
+    "[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; (New-Object Net.WebClient).DownloadFile('%TESS_URL%', '%TEMP_DIR%\tesseract_installer.exe')"
 
 if not exist "%TEMP_DIR%\tesseract_installer.exe" (
-    echo  WARNING: Tesseract installer not found after download. Skipping.
+    echo  WARNING: Tesseract download failed. Screenshots will not be blurred.
+    echo           Install manually: https://github.com/UB-Mannheim/tesseract/wiki
     goto :tess_done
 )
 
-echo         Installing Tesseract silently...
+:: Check file is not empty/corrupt (must be at least 1 MB)
+for %%f in ("%TEMP_DIR%\tesseract_installer.exe") do set TESS_SIZE=%%~zf
+if !TESS_SIZE! LSS 1000000 (
+    echo  WARNING: Tesseract download incomplete (!TESS_SIZE! bytes). Skipping.
+    echo           Install manually: https://github.com/UB-Mannheim/tesseract/wiki
+    goto :tess_done
+)
+
+echo         Download complete (!TESS_SIZE! bytes). Installing silently...
 "%TEMP_DIR%\tesseract_installer.exe" /S
 timeout /t 10 /nobreak >nul
 
@@ -135,8 +158,7 @@ if exist "%TESS_EXE%" (
     echo         Tesseract installed successfully.
     setx TESSERACT_CMD "%TESS_EXE%" /M >nul
 ) else (
-    echo  WARNING: Tesseract installer ran but exe not found at expected path.
-    echo           Screenshots may not be blurred until Tesseract is installed.
+    echo  WARNING: Tesseract installer ran but exe not found. Screenshots may not be blurred.
 )
 
 :tess_done
@@ -148,13 +170,16 @@ echo  Step 3/7 - Downloading EMRSOP from GitHub...
 
 if exist "%INSTALL_DIR%\agent\service\main.py" (
     echo         Already installed at %INSTALL_DIR% - skipping download.
+    :: Always update setup.bat in the install dir
+    copy /y "%~f0" "%INSTALL_DIR%\setup.bat" >nul 2>&1
     goto :clone_done
 )
 
 echo         Downloading from GitHub...
 powershell -NoProfile -ExecutionPolicy Bypass -Command ^
-    "[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; Invoke-WebRequest -Uri '%REPO_URL%' -OutFile '%TEMP_DIR%\emrsop.zip' -UseBasicParsing; Write-Host '        Download complete.'"
-if %errorLevel% neq 0 (
+    "[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; (New-Object Net.WebClient).DownloadFile('%REPO_URL%', '%TEMP_DIR%\emrsop.zip')"
+
+if not exist "%TEMP_DIR%\emrsop.zip" (
     echo  ERROR: GitHub download failed. Check internet connection.
     pause
     exit /b 1
@@ -169,7 +194,7 @@ if exist "%TEMP_DIR%\EMRSOP-main" (
     move "%TEMP_DIR%\EMRSOP-main" "%INSTALL_DIR%" >nul
     echo         Installed to %INSTALL_DIR%
 ) else (
-    echo  ERROR: Extraction failed - folder not found in %TEMP_DIR%
+    echo  ERROR: Extraction failed.
     pause
     exit /b 1
 )
@@ -201,31 +226,32 @@ echo  Step 5/7 - Installing Python packages...
 
 :: Install Visual C++ Redistributable (required by numpy/spaCy on Windows)
 echo         Checking Visual C++ Redistributable...
-reg query "HKLM\SOFTWARE\Microsoft\VisualStudio\14.0\VC\Runtimes\x64" /v Version >nul 2>&1
+reg query "HKLM\SOFTWARE\Microsoft\VisualStudio\14.0\VC\Runtimes\x64" /v Installed >nul 2>&1
 if %errorLevel% neq 0 (
     echo         Not found. Downloading VC++ Redistributable (~25 MB)...
     powershell -NoProfile -ExecutionPolicy Bypass -Command ^
-        "[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; (New-Object Net.WebClient).DownloadFile('%VCREDIST_URL%', '%TEMP_DIR%\vc_redist.exe'); Write-Host '        Download complete.'"
+        "[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; (New-Object Net.WebClient).DownloadFile('%VCREDIST_URL%', '%TEMP_DIR%\vc_redist.exe')"
     if exist "%TEMP_DIR%\vc_redist.exe" (
-        echo         Installing VC++ Redistributable...
+        echo         Installing VC++ Redistributable (required for spaCy/numpy)...
         "%TEMP_DIR%\vc_redist.exe" /quiet /norestart
-        echo         Done.
+        timeout /t 5 /nobreak >nul
+        echo         VC++ installed.
     ) else (
-        echo  WARNING: VC++ download failed. spaCy may fail to load on this machine.
+        echo  WARNING: VC++ download failed. spaCy may fail on this machine.
     )
 ) else (
     echo         Visual C++ Redistributable already installed.
 )
 echo.
 
+echo         Upgrading pip...
 %PYTHON_EXE% -m pip install --upgrade pip --quiet --no-warn-script-location
-if %errorLevel% neq 0 (
-    echo  WARNING: pip upgrade failed - continuing with existing pip.
-)
 
-:: Force-reinstall numpy first so DLLs are clean after VC++ install
-%PYTHON_EXE% -m pip install --force-reinstall "numpy>=1.24" --quiet --no-warn-script-location
+echo         Reinstalling numpy cleanly (fixes DLL issues)...
+%PYTHON_EXE% -m pip uninstall numpy -y --quiet 2>nul
+%PYTHON_EXE% -m pip install "numpy>=1.24" --quiet --no-warn-script-location
 
+echo         Installing remaining packages...
 %PYTHON_EXE% -m pip install ^
     "presidio-analyzer>=2.2.362" ^
     "presidio-anonymizer>=2.2.362" ^
@@ -253,11 +279,26 @@ echo.
 echo  Step 6/7 - Downloading spaCy language model (~560 MB)...
 :: -------------------------------------------------------
 
-echo         This may take several minutes on first install...
+:: Verify spaCy loads before attempting download
+%PYTHON_EXE% -c "import spacy" >nul 2>&1
+if %errorLevel% neq 0 (
+    echo  ERROR: spaCy failed to import. The DLL error is still present.
+    echo.
+    echo  Fix: Open a NEW Administrator command prompt and run:
+    echo    pip uninstall spacy thinc numpy -y
+    echo    pip install numpy
+    echo    pip install spacy
+    echo    python -m spacy download en_core_web_lg
+    echo.
+    pause
+    exit /b 1
+)
+
+echo         This may take several minutes...
 %PYTHON_EXE% -m spacy download en_core_web_lg
 if %errorLevel% neq 0 (
     echo  ERROR: spaCy model download failed.
-    echo  Run manually after setup: python -m spacy download en_core_web_lg
+    echo  Run manually: python -m spacy download en_core_web_lg
     pause
     exit /b 1
 )
