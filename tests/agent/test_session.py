@@ -36,3 +36,80 @@ def test_appointment_requires_patient_search():
     modules = ["appointment_scheduling"]
     result = classify_workflow(modules)
     assert result != WorkflowType.APPOINTMENT_BOOKING
+
+
+import json
+import tempfile
+from pathlib import Path
+from datetime import datetime
+from agent.session.exporter import export_session
+from agent.tracker.event_models import (
+    WorkflowSession, WorkflowStep, EMRType, WorkflowType
+)
+
+
+def _make_session() -> WorkflowSession:
+    return WorkflowSession(
+        session_id="sess_test01",
+        agent_id="vm-test",
+        emr=EMRType.ACCURO,
+        workflow_type=WorkflowType.APPOINTMENT_BOOKING,
+        started_at=datetime(2026, 5, 28, 9, 0, 0),
+        ended_at=datetime(2026, 5, 28, 9, 10, 0),
+        duration_seconds=600.0,
+        step_count=3,
+        steps=[
+            WorkflowStep(
+                step=1,
+                action="Opened patient search module",
+                module="patient_search",
+                timestamp=datetime(2026, 5, 28, 9, 0, 0),
+            ),
+            WorkflowStep(
+                step=2,
+                action="Selected patient record [REDACTED_NAME]",
+                module="patient_search",
+                timestamp=datetime(2026, 5, 28, 9, 0, 30),
+            ),
+            WorkflowStep(
+                step=3,
+                action="Navigated to appointment scheduling",
+                module="appointment_scheduling",
+                timestamp=datetime(2026, 5, 28, 9, 1, 0),
+            ),
+        ],
+    )
+
+
+def test_export_creates_json_file():
+    session = _make_session()
+    with tempfile.TemporaryDirectory() as tmp:
+        path = export_session(session, tmp)
+        assert path.exists()
+        assert path.suffix == ".json"
+
+
+def test_export_filename_contains_session_id():
+    session = _make_session()
+    with tempfile.TemporaryDirectory() as tmp:
+        path = export_session(session, tmp)
+        assert "sess_test01" in path.name
+
+
+def test_export_json_is_valid_and_has_steps():
+    session = _make_session()
+    with tempfile.TemporaryDirectory() as tmp:
+        path = export_session(session, tmp)
+        data = json.loads(path.read_text(encoding="utf-8"))
+        assert data["session_id"] == "sess_test01"
+        assert data["phi_redacted"] is True
+        assert len(data["steps"]) == 3
+        assert data["steps"][0]["step"] == 1
+
+
+def test_export_json_has_audit_timestamp():
+    session = _make_session()
+    with tempfile.TemporaryDirectory() as tmp:
+        path = export_session(session, tmp)
+        data = json.loads(path.read_text(encoding="utf-8"))
+        assert "redaction_applied_at" in data["audit"]
