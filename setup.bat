@@ -227,13 +227,13 @@ echo  Step 5/7 - Installing Python packages...
 :: Install Visual C++ Redistributable (required by numpy/spaCy on Windows)
 echo         Checking Visual C++ Redistributable...
 reg query "HKLM\SOFTWARE\Microsoft\VisualStudio\14.0\VC\Runtimes\x64" /v Installed >nul 2>&1
-if %errorLevel% neq 0 (
+set VC_ERR=!errorLevel!
+if !VC_ERR! neq 0 (
     echo         Not found. Downloading VC++ Redistributable (~25 MB)...
-    powershell -NoProfile -ExecutionPolicy Bypass -Command ^
-        "[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; (New-Object Net.WebClient).DownloadFile('%VCREDIST_URL%', '%TEMP_DIR%\vc_redist.exe')"
-    if exist "%TEMP_DIR%\vc_redist.exe" (
+    powershell -NoProfile -ExecutionPolicy Bypass -Command "[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; (New-Object Net.WebClient).DownloadFile('!VCREDIST_URL!', '!TEMP_DIR!\vc_redist.exe')"
+    if exist "!TEMP_DIR!\vc_redist.exe" (
         echo         Installing VC++ Redistributable (required for spaCy/numpy)...
-        "%TEMP_DIR%\vc_redist.exe" /quiet /norestart
+        "!TEMP_DIR!\vc_redist.exe" /quiet /norestart
         timeout /t 5 /nobreak >nul
         echo         VC++ installed.
     ) else (
