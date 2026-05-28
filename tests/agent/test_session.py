@@ -113,3 +113,81 @@ def test_export_json_has_audit_timestamp():
         path = export_session(session, tmp)
         data = json.loads(path.read_text(encoding="utf-8"))
         assert "redaction_applied_at" in data["audit"]
+
+
+import tempfile
+from unittest.mock import MagicMock, patch
+from agent.session.aggregator import SessionAggregator, IDLE_TIMEOUT_SECONDS
+
+
+@pytest.fixture(scope="module")
+def shared_redaction_engine():
+    from agent.redaction.engine import RedactionEngine
+    return RedactionEngine()
+
+
+def _make_aggregator(tmp_path_str: str, redaction_engine=None) -> SessionAggregator:
+    from agent.redaction.engine import RedactionEngine
+    from agent.storage.db import Database
+    from agent.storage.audit_log import AuditLogger
+    from agent.service.config import Config
+
+    if redaction_engine is None:
+        redaction_engine = RedactionEngine()
+
+    cfg = Config(
+        agent_id="vm-test",
+        data_dir=tmp_path_str,
+        workflows_dir=tmp_path_str + "/workflows",
+        screenshots_dir=tmp_path_str + "/screenshots",
+        db_path=tmp_path_str + "/test.db",
+        audit_log_path=tmp_path_str + "/audit.log",
+        poll_interval=0.2,
+        idle_timeout=900,
+        emr_modules={},
+        emr_processes={},
+    )
+    return SessionAggregator(
+        agent_id="vm-test",
+        redaction_engine=redaction_engine,
+        db=Database(cfg.db_path),
+        audit=AuditLogger(cfg.audit_log_path),
+        config=cfg,
+    )
+
+
+def test_aggregator_starts_session_on_first_event(tmp_path, shared_redaction_engine):
+    agg = _make_aggregator(str(tmp_path), shared_redaction_engine)
+    assert agg._current_session is None
+    agg.on_event(emr="accuro", module="patient_search",
+                 window_title="Accuro - Patient Search", event_type="window_focus")
+    assert agg._current_session is not None
+    assert agg._current_session.emr.value == "accuro"
+
+
+def test_aggregator_adds_step_per_event(tmp_path, shared_redaction_engine):
+    agg = _make_aggregator(str(tmp_path), shared_redaction_engine)
+    agg.on_event("accuro", "patient_search", "Accuro - Patient Search", "window_focus")
+    agg.on_event("accuro", "appointment_scheduling", "Accuro - Appointments", "navigation")
+    assert agg._current_session.step_count == 2
+
+
+def test_aggregator_force_close_writes_json(tmp_path, shared_redaction_engine):
+    agg = _make_aggregator(str(tmp_path), shared_redaction_engine)
+    agg.on_event("accuro", "patient_search", "Accuro - Patient Search", "window_focus")
+    agg.on_event("accuro", "appointment_scheduling", "Accuro - Appointments", "navigation")
+    agg.force_close()
+    assert agg._current_session is None
+    files = list((tmp_path / "workflows").glob("*.json"))
+    assert len(files) == 1
+
+
+def test_aggregator_idle_timeout_closes_session(tmp_path, shared_redaction_engine):
+    from datetime import datetime, timedelta
+    agg = _make_aggregator(str(tmp_path), shared_redaction_engine)
+    agg.on_event("accuro", "patient_search", "Accuro - Patient Search", "window_focus")
+    # Fake the last event time to exceed idle timeout
+    agg._last_event_time = datetime.utcnow() - timedelta(seconds=IDLE_TIMEOUT_SECONDS + 1)
+    agg.on_event("accuro", "billing", "Accuro - Billing", "window_focus")
+    # New session should have started
+    assert agg._current_session.step_count == 1
