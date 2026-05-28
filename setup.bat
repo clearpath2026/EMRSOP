@@ -117,65 +117,38 @@ if exist "%TESS_EXE%" (
     goto :tess_done
 )
 
-echo         Tesseract not found. Trying winget...
-where winget >nul 2>&1
-if %errorLevel% equ 0 (
-    winget source update --name winget >nul 2>&1
-    winget install --id UB-Mannheim.TesseractOCR --silent --accept-package-agreements --accept-source-agreements
-    if exist "%TESS_EXE%" (
-        echo         Tesseract installed via winget.
-        setx TESSERACT_CMD "%TESS_EXE%" /M >nul
-        goto :tess_done
-    )
-    echo         winget did not install Tesseract. Trying Chocolatey...
-) else (
-    echo         winget not found. Trying Chocolatey...
-)
+echo         Tesseract not found. Trying BITS transfer (~50 MB)...
+del "%TEMP_DIR%\tesseract_installer.exe" 2>nul
+powershell -NoProfile -ExecutionPolicy Bypass -Command "Start-BitsTransfer -Source '%TESS_URL%' -Destination '%TEMP_DIR%\tesseract_installer.exe'" 2>nul
 
-echo         winget unavailable or failed. Trying Chocolatey...
-where choco >nul 2>&1
-if %errorLevel% neq 0 (
-    echo         Installing Chocolatey...
-    powershell -NoProfile -ExecutionPolicy Bypass -Command "[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; iex ((New-Object Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))"
-    :: Refresh PATH to pick up choco
-    for /f "usebackq tokens=2*" %%A in (`reg query "HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Environment" /v Path 2^>nul`) do set PATH=%%B;%PATH%
-)
+if not exist "%TEMP_DIR%\tesseract_installer.exe" goto :tess_webclient
+for %%f in ("%TEMP_DIR%\tesseract_installer.exe") do set TESS_SIZE=%%~zf
+if !TESS_SIZE! LSS 1000000 goto :tess_webclient
+goto :tess_run_installer
 
-where choco >nul 2>&1
-if %errorLevel% equ 0 (
-    choco install tesseract --yes --no-progress
-    if exist "%TESS_EXE%" (
-        echo         Tesseract installed via Chocolatey.
-        setx TESSERACT_CMD "%TESS_EXE%" /M >nul
-        goto :tess_done
-    )
-)
-
-echo         Trying direct download (~50 MB)...
+:tess_webclient
+echo         BITS failed. Trying WebClient...
 del "%TEMP_DIR%\tesseract_installer.exe" 2>nul
 powershell -NoProfile -ExecutionPolicy Bypass -Command "[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; (New-Object Net.WebClient).DownloadFile('%TESS_URL%', '%TEMP_DIR%\tesseract_installer.exe')"
-
-if not exist "%TEMP_DIR%\tesseract_installer.exe" (
-    echo  WARNING: All Tesseract install methods failed. Screenshots will not be blurred.
-    echo           Install manually: https://github.com/UB-Mannheim/tesseract/wiki
-    goto :tess_done
-)
-
+if not exist "%TEMP_DIR%\tesseract_installer.exe" goto :tess_failed
 for %%f in ("%TEMP_DIR%\tesseract_installer.exe") do set TESS_SIZE=%%~zf
-if !TESS_SIZE! LSS 1000000 (
-    echo  WARNING: Tesseract download incomplete. Skipping.
-    goto :tess_done
-)
+if !TESS_SIZE! LSS 1000000 goto :tess_failed
 
+:tess_run_installer
+echo         Download complete. Installing silently...
 "%TEMP_DIR%\tesseract_installer.exe" /S
 timeout /t 10 /nobreak >nul
-
 if exist "%TESS_EXE%" (
-    echo         Tesseract installed from direct download.
+    echo         Tesseract installed successfully.
     setx TESSERACT_CMD "%TESS_EXE%" /M >nul
-) else (
-    echo  WARNING: Tesseract install failed. Screenshots will not be blurred.
+    goto :tess_done
 )
+
+:tess_failed
+echo  WARNING: Tesseract could not be installed. Screenshots will not be blurred.
+echo           To install manually, run in an admin PowerShell:
+echo             winget install UB-Mannheim.TesseractOCR
+echo           Or download from: https://github.com/UB-Mannheim/tesseract/wiki
 
 :tess_done
 echo.
