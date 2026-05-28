@@ -26,6 +26,7 @@ set "INSTALL_DIR=C:\EMRTracker"
 set "REPO_URL=https://github.com/clearpath2026/EMRSOP/archive/refs/heads/main.zip"
 set "PYTHON_URL=https://www.python.org/ftp/python/3.11.9/python-3.11.9-amd64.exe"
 set "TESS_URL=https://github.com/UB-Mannheim/tesseract/releases/download/v5.3.3.20231005/tesseract-ocr-w64-setup-5.3.3.20231005.exe"
+set "VCREDIST_URL=https://aka.ms/vs/17/release/vc_redist.x64.exe"
 set "TEMP_DIR=%TEMP%\emrsop_setup"
 
 mkdir "%TEMP_DIR%" 2>nul
@@ -113,7 +114,7 @@ if exist "%TESS_EXE%" (
 
 echo         Tesseract not found. Downloading from GitHub (~50 MB)...
 powershell -NoProfile -ExecutionPolicy Bypass -Command ^
-    "[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; Invoke-WebRequest -Uri '%TESS_URL%' -OutFile '%TEMP_DIR%\tesseract_installer.exe' -UseBasicParsing; Write-Host '        Download complete.'"
+    "[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; (New-Object Net.WebClient).DownloadFile('%TESS_URL%', '%TEMP_DIR%\tesseract_installer.exe'); Write-Host '        Download complete.'"
 if %errorLevel% neq 0 (
     echo  WARNING: Tesseract download failed. Screenshots will not be blurred.
     echo           You can install it manually later:
@@ -121,9 +122,14 @@ if %errorLevel% neq 0 (
     goto :tess_done
 )
 
+if not exist "%TEMP_DIR%\tesseract_installer.exe" (
+    echo  WARNING: Tesseract installer not found after download. Skipping.
+    goto :tess_done
+)
+
 echo         Installing Tesseract silently...
 "%TEMP_DIR%\tesseract_installer.exe" /S
-timeout /t 8 /nobreak >nul
+timeout /t 10 /nobreak >nul
 
 if exist "%TESS_EXE%" (
     echo         Tesseract installed successfully.
@@ -193,10 +199,32 @@ echo.
 echo  Step 5/7 - Installing Python packages...
 :: -------------------------------------------------------
 
+:: Install Visual C++ Redistributable (required by numpy/spaCy on Windows)
+echo         Checking Visual C++ Redistributable...
+reg query "HKLM\SOFTWARE\Microsoft\VisualStudio\14.0\VC\Runtimes\x64" /v Version >nul 2>&1
+if %errorLevel% neq 0 (
+    echo         Not found. Downloading VC++ Redistributable (~25 MB)...
+    powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+        "[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; (New-Object Net.WebClient).DownloadFile('%VCREDIST_URL%', '%TEMP_DIR%\vc_redist.exe'); Write-Host '        Download complete.'"
+    if exist "%TEMP_DIR%\vc_redist.exe" (
+        echo         Installing VC++ Redistributable...
+        "%TEMP_DIR%\vc_redist.exe" /quiet /norestart
+        echo         Done.
+    ) else (
+        echo  WARNING: VC++ download failed. spaCy may fail to load on this machine.
+    )
+) else (
+    echo         Visual C++ Redistributable already installed.
+)
+echo.
+
 %PYTHON_EXE% -m pip install --upgrade pip --quiet --no-warn-script-location
 if %errorLevel% neq 0 (
     echo  WARNING: pip upgrade failed - continuing with existing pip.
 )
+
+:: Force-reinstall numpy first so DLLs are clean after VC++ install
+%PYTHON_EXE% -m pip install --force-reinstall "numpy>=1.24" --quiet --no-warn-script-location
 
 %PYTHON_EXE% -m pip install ^
     "presidio-analyzer>=2.2.362" ^
@@ -210,7 +238,6 @@ if %errorLevel% neq 0 (
     "pywin32>=306" ^
     "psutil>=5.9" ^
     "pandas>=2.0" ^
-    "numpy>=1.24" ^
     --quiet --no-warn-script-location
 
 if %errorLevel% neq 0 (
